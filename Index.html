@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Free Invoice Generator — iWillFix</title>
+  <meta name="description" content="Create professional invoices instantly. Free, no signup, and your data stays in your browser." />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Google Font: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- TRUE VECTOR PDF LIBRARIES (jsPDF + AutoTable) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #F8FAFC;
+      color: #0F172A;
+    }
+
+    /* Desktop layout: fixed height grid with independent scrolling */
+    @media (min-width: 1280px) {
+      .app-grid {
+        height: calc(100vh - 7rem);
+        min-height: 620px;
+      }
+    }
+
+    /* Custom thin scrollbar */
+    .scroll-pane { scrollbar-width: thin; scrollbar-color: #CBD5E1 transparent; }
+    .scroll-pane::-webkit-scrollbar { width: 8px; }
+    .scroll-pane::-webkit-scrollbar-track { background: transparent; }
+    .scroll-pane::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 9999px; }
+    .scroll-pane::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+
+    /* Print styles */
+    @media print {
+      @page { size: A4; margin: 12mm; }
+      html, body { background: #fff !important; height: auto !important; overflow: visible !important; }
+      .no-print { display: none !important; }
+      .app-section { padding: 0 !important; max-width: none !important; }
+      .app-grid, .preview-col, .preview-tray {
+        display: block !important;
+        height: auto !important;
+        overflow: visible !important;
+        background: none !important;
+        border: none !important;
+        padding: 0 !important;
+      }
+      #invoice-preview {
+        max-width: none !important;
+        min-height: 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        border: none !important;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- ================= HEADER ================= -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 no-print">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <a href="#" class="text-xl font-bold tracking-tight text-slate-900">iWillFix<span class="text-blue-600">.</span></a>
+        <span class="text-xs bg-slate-100 text-slate-500 font-medium px-2 py-0.5 rounded border border-slate-200">Tools</span>
+      </div>
+      <nav class="hidden md:flex items-center gap-6 text-sm text-slate-500">
+        <a href="#features" class="hover:text-slate-900 transition">Features</a>
+        <a href="#faq" class="hover:text-slate-900 transition">FAQ</a>
+      </nav>
+      <div class="flex items-center gap-2 text-xs text-emerald-700 font-medium bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span>100% Private</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= MAIN APP ================= -->
+  <main class="w-full flex-1">
+
+    <section class="app-section max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div class="app-grid grid grid-cols-1 xl:grid-cols-12 xl:grid-rows-1 gap-6">
+
+        <!-- ========== LEFT: FORM (Independent Scroll) ========== -->
+        <div class="xl:col-span-5 xl:min-h-0 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden no-print">
+
+          <div class="shrink-0 px-6 py-4 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between gap-4">
+            <div>
+              <h1 class="text-base font-bold text-slate-900">Free Invoice Generator</h1>
+              <p class="text-xs text-slate-500">Create &amp; download vector PDF invoices.</p>
+            </div>
+            <button type="button" onclick="resetForm()" class="text-xs font-medium text-slate-400 hover:text-red-500 transition">Reset</button>
+          </div>
+
+          <div class="scroll-pane flex-1 xl:min-h-0 xl:overflow-y-auto p-6 space-y-6">
+
+            <!-- Currency & Accent -->
+            <div class="grid grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Currency</label>
+                <select id="currencySymbol" onchange="updateInvoice()" class="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                  <option value="$">USD ($)</option>
+                  <option value="€">EUR (€)</option>
+                  <option value="£">GBP (£)</option>
+                  <option value="Rs ">PKR (Rs)</option>
+                  <option value="₹">INR (₹)</option>
+                  <option value="CA$">CAD (CA$)</option>
+                  <option value="AED ">AED (AED)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Accent Color</label>
+                <select id="accentColor" onchange="changeColor(this.value)" class="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                  <option value="blue">Modern Blue</option>
+                  <option value="emerald">Emerald Green</option>
+                  <option value="slate">Dark Slate</option>
+                  <option value="purple">Royal Purple</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Invoice Details -->
+            <div>
+              <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Invoice Details</h3>
+              <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div>
+                  <label class="block text-xs font-medium text-slate-600 mb-1">Invoice #</label>
+                  <input type="text" id="invNumber" placeholder="INV-001" oninput="updateInvoice()" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-600 mb-1">Issue Date</label>
+                  <input type="date" id="invDate" oninput="updateInvoice()" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                </div>
+                <div class="col-span-2 sm:col-span-1">
+                  <label class="block text-xs font-medium text-slate-600 mb-1">Due Date</label>
+                  <input type="date" id="invDueDate" oninput="updateInvoice()" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                </div>
+                <div class="col-span-2 sm:col-span-3">
+                  <label class="block text-xs font-medium text-slate-600 mb-1">PO / Reference # <span class="text-slate-400">(Optional)</span></label>
+                  <input type="text" id="invPoNumber" placeholder="PO-99482" oninput="updateInvoice()" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Logo -->
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Business Logo <span class="text-slate-400">(Optional)</span></label>
+              <input type="file" id="invLogo" accept="image/*" onchange="handleLogo(event)" class="block w-full text-xs text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-100 file:text-slate-600 hover:file:bg-slate-200 cursor-pointer" />
+            </div>
+
+            <!-- From -->
+            <div>
+              <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">From (Your Info)</h3>
+              <div class="space-y-2">
+                <input type="text" id="senderName" placeholder="Your Business / Full Name" oninput="updateInvoice()" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                <div class="grid grid-cols-2 gap-2">
+                  <input type="email" id="senderEmail" placeholder="Email Address" oninput="updateInvoice()" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                  <input type="text" id="senderTaxId" placeholder="Tax / VAT / NTN ID" oninput="updateInvoice()" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                </div>
+                <textarea id="senderAddress" placeholder="Street Address, City, Country" rows="2" oninput="updateInvoice()" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"></textarea>
+              </div>
+            </div>
+
+            <!-- Bill To -->
+            <div>
+              <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Bill To (Client Info)</h3>
+              <div class="space-y-2">
+                <input type="text" id="clientName" placeholder="Client Name or Company" oninput="updateInvoice()" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                <div class="grid grid-cols-2 gap-2">
+                  <input type="email" id="clientEmail" placeholder="Client Email" oninput="updateInvoice()" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                  <input type="text" id="clientTaxId" placeholder="Client Tax / VAT ID" oninput="updateInvoice()" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                </div>
+                <textarea id="clientAddress" placeholder="Client Address, City, Country" rows="2" oninput="updateInvoice()" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"></textarea>
+              </div>
+            </div>
+
+            <!-- Items -->
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Line Items</h3>
+                <button type="button" onclick="addItem()" class="text-xs font-semibold text-blue-600 hover:text-blue-700 transition">+ Add Item</button>
+              </div>
+              <div id="items-editor-container" class="space-y-2"></div>
+            </div>
+
+            <!-- Tax & Discount -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Tax / VAT (%)</label>
+                <input type="number" id="taxRate" value="0" min="0" step="0.1" oninput="updateInvoice()" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Discount Amount</label>
+                <input type="number" id="discountAmount" value="0" min="0" step="1" oninput="updateInvoice()" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+              </div>
+            </div>
+
+            <!-- Notes -->
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Payment Instructions / Bank Details</label>
+              <textarea id="invNotes" rows="3" placeholder="e.g. Bank Account / IBAN / PayPal ID or terms..." oninput="updateInvoice()" class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"></textarea>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ========== RIGHT: PREVIEW (Independent Scroll) ========== -->
+        <div class="preview-col xl:col-span-7 xl:min-h-0 flex flex-col">
+
+          <div class="shrink-0 flex items-center justify-between mb-3 gap-3 no-print">
+            <span class="text-xs text-slate-400 font-medium">Document Preview</span>
+            <div class="flex items-center gap-2">
+              <button onclick="window.print()" class="inline-flex items-center gap-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold px-4 py-2.5 rounded-xl shadow-sm transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                Print
+              </button>
+              <button id="downloadPdfBtn" onclick="generateVectorPDF()" class="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-5 py-2.5 rounded-xl shadow-sm hover:shadow transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                <span>Download PDF</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="preview-tray scroll-pane flex-1 xl:min-h-0 xl:overflow-y-auto bg-slate-100/80 border border-slate-200 rounded-2xl p-3 sm:p-6">
+
+            <div id="invoice-preview" class="mx-auto w-full max-w-[820px] bg-white p-8 sm:p-12 rounded-xl border border-slate-200 shadow-md min-h-[820px] flex flex-col justify-between text-slate-700">
+
+              <div>
+                <!-- Header -->
+                <div class="flex justify-between items-start border-b border-slate-100 pb-8 gap-6">
+                  <div class="space-y-1">
+                    <div id="preview-logo-container" class="hidden mb-3">
+                      <img id="preview-logo" src="" alt="Logo" class="max-h-12 object-contain" />
+                    </div>
+                    <h3 id="prevSenderName" class="text-xl font-bold text-slate-900">Your Business Name</h3>
+                    <p id="prevSenderEmail" class="text-xs text-slate-400"></p>
+                    <p id="prevSenderTaxId" class="text-xs text-slate-400 font-mono"></p>
+                    <p id="prevSenderAddress" class="text-xs text-slate-400 whitespace-pre-line mt-1"></p>
+                  </div>
+
+                  <div class="text-right shrink-0">
+                    <span id="accentHeader" class="text-3xl font-black text-blue-600 tracking-tight uppercase">Invoice</span>
+                    <p id="prevInvNumber" class="text-xs text-slate-500 mt-1 font-mono font-semibold tracking-wide"></p>
+                    <div class="mt-4 space-y-0.5 text-xs text-slate-500">
+                      <div><span class="text-slate-400">Issue Date:</span> <span id="prevInvDate" class="font-medium text-slate-800">--</span></div>
+                      <div><span class="text-slate-400">Due Date:</span> <span id="prevInvDueDate" class="font-medium text-slate-800">--</span></div>
+                      <div id="prevPoContainer" class="hidden"><span class="text-slate-400">PO #:</span> <span id="prevInvPo" class="font-medium text-slate-800"></span></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Bill To -->
+                <div class="py-6">
+                  <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">Billed To</span>
+                  <h4 id="prevClientName" class="text-sm font-bold text-slate-900">Client Name</h4>
+                  <p id="prevClientEmail" class="text-xs text-slate-400"></p>
+                  <p id="prevClientTaxId" class="text-xs text-slate-400 font-mono"></p>
+                  <p id="prevClientAddress" class="text-xs text-slate-400 whitespace-pre-line mt-1"></p>
+                </div>
+
+                <!-- Items table -->
+                <div class="mt-2">
+                  <table class="w-full text-left border-collapse">
+                    <thead>
+                      <tr class="border-b-2 border-slate-200 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        <th class="pb-3 text-left">Description</th>
+                        <th class="pb-3 text-center w-14">Qty</th>
+                        <th class="pb-3 text-right w-24">Rate</th>
+                        <th class="pb-3 text-right w-28">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody id="preview-items-body" class="divide-y divide-slate-100 text-xs"></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- Totals & Notes -->
+              <div class="pt-6 mt-6 border-t border-slate-100">
+                <div class="flex justify-between items-start gap-6">
+                  <div class="max-w-xs">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">Payment Terms / Notes</span>
+                    <p id="prevNotes" class="text-xs text-slate-500 whitespace-pre-line leading-relaxed"></p>
+                  </div>
+
+                  <div class="w-56 space-y-1.5 text-xs">
+                    <div class="flex justify-between text-slate-500">
+                      <span class="text-slate-400">Subtotal:</span>
+                      <span id="prevSubtotal" class="font-medium text-slate-700">$0.00</span>
+                    </div>
+                    <div id="taxRow" class="flex justify-between text-slate-500">
+                      <span class="text-slate-400">Tax (<span id="prevTaxPercent">0</span>%):</span>
+                      <span id="prevTaxAmount" class="font-medium text-slate-700">$0.00</span>
+                    </div>
+                    <div id="discountRow" class="flex justify-between text-slate-500">
+                      <span class="text-slate-400">Discount:</span>
+                      <span id="prevDiscountAmount" class="font-medium text-slate-700">-$0.00</span>
+                    </div>
+                    <div class="flex justify-between text-sm font-bold text-slate-900 pt-2 border-t-2 border-slate-200 mt-2">
+                      <span>Total Due:</span>
+                      <span id="prevTotal" class="text-blue-600 text-base font-extrabold">$0.00</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="text-center pt-8 mt-6 border-t border-slate-50">
+                  <p class="text-[10px] text-slate-300 uppercase tracking-widest font-medium">Generated via iWillFix</p>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ===== FEATURES ===== -->
+    <section id="features" class="max-w-4xl mx-auto px-4 mt-14 no-print">
+      <div class="text-center mb-8">
+        <h2 class="text-2xl font-bold text-slate-900">Why use iWillFix Invoice Generator?</h2>
+        <p class="mt-1 text-sm text-slate-500">Built for freelancers and small businesses who need invoices fast.</p>
+      </div>
+      <div class="grid sm:grid-cols-3 gap-5">
+        <div class="bg-white p-5 rounded-xl border border-slate-200">
+          <h3 class="font-semibold text-slate-900 mb-1">🔒 Private by design</h3>
+          <p class="text-xs text-slate-500 leading-relaxed">Invoice details are processed in your browser and are not uploaded to our servers.</p>
+        </div>
+        <div class="bg-white p-5 rounded-xl border border-slate-200">
+          <h3 class="font-semibold text-slate-900 mb-1">⚡ Vector PDF Export</h3>
+          <p class="text-xs text-slate-500 leading-relaxed">Razor sharp vector text that never pixelates no matter how much you zoom.</p>
+        </div>
+        <div class="bg-white p-5 rounded-xl border border-slate-200">
+          <h3 class="font-semibold text-slate-900 mb-1">✅ No signup required</h3>
+          <p class="text-xs text-slate-500 leading-relaxed">No account, no limits. Multiple currencies, tax/VAT IDs and PO numbers supported.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== FAQ ===== -->
+    <section id="faq" class="max-w-3xl mx-auto px-4 mt-14 no-print">
+      <h2 class="text-xl font-bold text-slate-900 mb-6 text-center">Frequently Asked Questions</h2>
+      <div class="space-y-2">
+        <details class="bg-white rounded-xl border border-slate-200">
+          <summary class="px-5 py-4 text-sm font-medium text-slate-800 cursor-pointer">Is this invoice generator free?</summary>
+          <p class="px-5 pb-4 text-xs text-slate-500 leading-relaxed">Yes. You can create unlimited invoices without an account.</p>
+        </details>
+        <details class="bg-white rounded-xl border border-slate-200">
+          <summary class="px-5 py-4 text-sm font-medium text-slate-800 cursor-pointer">Do you store my invoice data?</summary>
+          <p class="px-5 pb-4 text-xs text-slate-500 leading-relaxed">No. Your invoice details are processed in your browser and are not sent to our servers.</p>
+        </details>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ================= FOOTER ================= -->
+  <footer class="bg-white border-t border-slate-200 py-8 mt-14 no-print">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-2">
+        <span class="text-lg font-bold text-slate-900">iWillFix<span class="text-blue-600">.</span></span>
+        <span class="text-xs text-slate-400">&copy; 2026 — Free tools for professionals</span>
+      </div>
+      <nav class="flex gap-5 text-xs text-slate-500">
+        <a href="#" class="hover:text-slate-800 transition">Privacy Policy</a>
+        <a href="#" class="hover:text-slate-800 transition">Terms of Service</a>
+        <a href="#" class="hover:text-slate-800 transition">Contact</a>
+      </nav>
+    </div>
+  </footer>
+
+  <!-- ================= JAVASCRIPT ================= -->
+  <script>
+    let items = [{ description: "", qty: 1, rate: 0 }];
+
+    function esc(str) {
+      return String(str).replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[c]));
+    }
+
+    function money(cur, n) {
+      return cur + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function setDefaultDates() {
+      const today = new Date();
+      const due = new Date();
+      due.setDate(today.getDate() + 14);
+      document.getElementById('invDate').value = today.toISOString().split('T')[0];
+      document.getElementById('invDueDate').value = due.toISOString().split('T')[0];
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      setDefaultDates();
+      renderItemInputs();
+      updateInvoice();
+    });
+
+    function renderItemInputs() {
+      const container = document.getElementById('items-editor-container');
+      container.innerHTML = '';
+
+      items.forEach((item, i) => {
+        const row = document.createElement('div');
+        row.className = "flex items-center gap-2";
+        row.innerHTML = `
+          <input type="text" placeholder="Description of service/goods" value="${esc(item.description)}" oninput="updateItem(${i}, 'description', this.value)" class="flex-grow min-w-0 px-3 py-2 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+          <input type="number" min="0" step="any" placeholder="Qty" value="${item.qty}" oninput="updateItem(${i}, 'qty', this.value)" class="w-14 px-2 py-2 text-xs border border-slate-200 rounded-lg text-center focus:ring-2 focus:ring-blue-500 outline-none" />
+          <input type="number" min="0" step="0.01" placeholder="Price" value="${item.rate || ''}" oninput="updateItem(${i}, 'rate', this.value)" class="w-20 px-2 py-2 text-xs border border-slate-200 rounded-lg text-right focus:ring-2 focus:ring-blue-500 outline-none" />
+          <button type="button" onclick="removeItem(${i})" class="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition ${items.length <= 1 ? 'opacity-30 cursor-not-allowed' : ''}" ${items.length <= 1 ? 'disabled' : ''}>&times;</button>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    function addItem() {
+      items.push({ description: "", qty: 1, rate: 0 });
+      renderItemInputs();
+      updateInvoice();
+    }
+
+    function removeItem(i) {
+      if (items.length > 1) {
+        items.splice(i, 1);
+        renderItemInputs();
+        updateInvoice();
+      }
+    }
+
+    function updateItem(i, field, value) {
+      if (field === 'qty') items[i].qty = parseFloat(value) || 0;
+      else if (field === 'rate') items[i].rate = parseFloat(value) || 0;
+      else items[i][field] = value;
+      updateInvoice();
+    }
+
+    function handleLogo(event) {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          document.getElementById('preview-logo').src = e.target.result;
+          document.getElementById('preview-logo-container').classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
+    function changeColor(color) {
+      const header = document.getElementById('accentHeader');
+      const total = document.getElementById('prevTotal');
+      const dlBtn = document.getElementById('downloadPdfBtn');
+
+      const colors = {
+        blue:    { text: 'text-blue-600',    btn: 'bg-blue-600 hover:bg-blue-700' },
+        emerald: { text: 'text-emerald-600', btn: 'bg-emerald-600 hover:bg-emerald-700' },
+        slate:   { text: 'text-slate-900',   btn: 'bg-slate-900 hover:bg-slate-800' },
+        purple:  { text: 'text-purple-600',  btn: 'bg-purple-600 hover:bg-purple-700' }
+      };
+
+      header.className = `text-3xl font-black ${colors[color].text} tracking-tight uppercase`;
+      total.className = `${colors[color].text} text-base font-extrabold`;
+      dlBtn.className = `inline-flex items-center gap-1.5 ${colors[color].btn} text-white text-xs font-semibold px-5 py-2.5 rounded-xl shadow-sm hover:shadow transition`;
+    }
+
+    function updateInvoice() {
+      const cur = document.getElementById('currencySymbol').value;
+      const val = id => document.getElementById(id).value;
+
+      // Meta
+      document.getElementById('prevInvNumber').textContent = val('invNumber') || "INV-0001";
+      document.getElementById('prevInvDate').textContent = val('invDate') || "--";
+      document.getElementById('prevInvDueDate').textContent = val('invDueDate') || "--";
+
+      const po = val('invPoNumber');
+      document.getElementById('prevPoContainer').classList.toggle('hidden', !po);
+      document.getElementById('prevInvPo').textContent = po;
+
+      // Sender
+      document.getElementById('prevSenderName').textContent = val('senderName') || "Your Business Name";
+      document.getElementById('prevSenderEmail').textContent = val('senderEmail');
+      document.getElementById('prevSenderTaxId').textContent = val('senderTaxId') ? `Tax ID: ${val('senderTaxId')}` : '';
+      document.getElementById('prevSenderAddress').textContent = val('senderAddress');
+
+      // Client
+      document.getElementById('prevClientName').textContent = val('clientName') || "Client Name";
+      document.getElementById('prevClientEmail').textContent = val('clientEmail');
+      document.getElementById('prevClientTaxId').textContent = val('clientTaxId') ? `Tax ID: ${val('clientTaxId')}` : '';
+      document.getElementById('prevClientAddress').textContent = val('clientAddress');
+
+      // Notes
+      document.getElementById('prevNotes').textContent = val('invNotes');
+
+      // Items
+      const tbody = document.getElementById('preview-items-body');
+      tbody.innerHTML = '';
+      let subtotal = 0;
+
+      items.forEach(item => {
+        const amount = (item.qty || 0) * (item.rate || 0);
+        subtotal += amount;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="py-2.5 pr-3 text-slate-700 font-medium">${esc(item.description) || "—"}</td>
+          <td class="py-2.5 text-center text-slate-500">${item.qty || "—"}</td>
+          <td class="py-2.5 text-right text-slate-500">${item.rate > 0 ? money(cur, item.rate) : '—'}</td>
+          <td class="py-2.5 text-right font-semibold text-slate-800">${amount > 0 ? money(cur, amount) : '—'}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      // Totals
+      const taxRate = parseFloat(val('taxRate')) || 0;
+      const discount = parseFloat(val('discountAmount')) || 0;
+      const taxAmt = (subtotal * taxRate) / 100;
+      const total = Math.max(0, subtotal + taxAmt - discount);
+
+      document.getElementById('prevSubtotal').textContent = money(cur, subtotal);
+      document.getElementById('prevTaxPercent').textContent = taxRate;
+      document.getElementById('prevTaxAmount').textContent = money(cur, taxAmt);
+      document.getElementById('prevDiscountAmount').textContent = '-' + money(cur, discount);
+      document.getElementById('prevTotal').textContent = money(cur, total);
+
+      document.getElementById('taxRow').style.display = taxRate > 0 ? 'flex' : 'none';
+      document.getElementById('discountRow').style.display = discount > 0 ? 'flex' : 'none';
+    }
+
+    // ================= REAL TRUE-VECTOR PDF GENERATOR =================
+    function generateVectorPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+
+      const val = id => document.getElementById(id).value;
+      const cur = document.getElementById('currencySymbol').value;
+      const accent = document.getElementById('accentColor').value;
+
+      const colors = {
+        blue: [37, 99, 235],
+        emerald: [5, 150, 105],
+        slate: [15, 23, 42],
+        purple: [147, 51, 234]
+      };
+      const primaryColor = colors[accent] || colors.blue;
+
+      let startY = 20;
+
+      // 1. Business Logo (Vector Image Embedding)
+      const logoImg = document.getElementById('preview-logo');
+      if (!document.getElementById('preview-logo-container').classList.contains('hidden') && logoImg.src) {
+        try {
+          doc.addImage(logoImg.src, 'PNG', 15, 15, 30, 15);
+          startY = 35;
+        } catch(e) { console.log(e); }
+      }
+
+      // 2. Sender Name & Details (Native Vector Text)
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.setTextColor(15, 23, 42);
+      doc.text(val('senderName') || "Your Business Name", 15, startY);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139);
+
+      let senderY = startY + 5;
+      if (val('senderEmail')) { doc.text(val('senderEmail'), 15, senderY); senderY += 4; }
+      if (val('senderTaxId')) { doc.text(`Tax ID: ${val('senderTaxId')}`, 15, senderY); senderY += 4; }
+      if (val('senderAddress')) {
+        const lines = doc.splitTextToSize(val('senderAddress'), 85);
+        doc.text(lines, 15, senderY);
+        senderY += (lines.length * 4);
+      }
+
+      // 3. Invoice Header Title & Meta (Right Side)
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(22);
+      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      doc.text("INVOICE", 195, startY, { align: "right" });
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(71, 85, 105);
+      doc.text(val('invNumber') || "INV-0001", 195, startY + 6, { align: "right" });
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(100, 116, 139);
+
+      let metaY = startY + 13;
+      doc.text(`Issue Date: ${val('invDate') || '--'}`, 195, metaY, { align: "right" });
+      metaY += 4;
+      doc.text(`Due Date: ${val('invDueDate') || '--'}`, 195, metaY, { align: "right" });
+      if (val('invPoNumber')) {
+        metaY += 4;
+        doc.text(`PO #: ${val('invPoNumber')}`, 195, metaY, { align: "right" });
+      }
+
+      // Divider Line (Vector Graphic)
+      let sectionY = Math.max(senderY, metaY) + 6;
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.4);
+      doc.line(15, sectionY, 195, sectionY);
+
+      // 4. Billed To
+      sectionY += 8;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      doc.setTextColor(148, 163, 184);
+      doc.text("BILLED TO", 15, sectionY);
+
+      sectionY += 5;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(15, 23, 42);
+      doc.text(val('clientName') || "Client Name", 15, sectionY);
+
+      sectionY += 4.5;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139);
+
+      if (val('clientEmail')) { doc.text(val('clientEmail'), 15, sectionY); sectionY += 4; }
+      if (val('clientTaxId')) { doc.text(`Tax ID: ${val('clientTaxId')}`, 15, sectionY); sectionY += 4; }
+      if (val('clientAddress')) {
+        const cLines = doc.splitTextToSize(val('clientAddress'), 85);
+        doc.text(cLines, 15, sectionY);
+        sectionY += (cLines.length * 4);
+      }
+
+      // 5. Line Items Table (Vector Table)
+      sectionY += 4;
+      const tableData = items.map(item => {
+        const amt = (item.qty || 0) * (item.rate || 0);
+        return [
+          item.description || "—",
+          item.qty ? item.qty.toString() : "—",
+          item.rate > 0 ? `${cur}${item.rate.toFixed(2)}` : "—",
+          amt > 0 ? `${cur}${amt.toFixed(2)}` : "—"
+        ];
+      });
+
+      doc.autoTable({
+        startY: sectionY,
+        head: [['Description', 'Qty', 'Rate', 'Amount']],
+        body: tableData,
+        margin: { left: 15, right: 15 },
+        theme: 'plain',
+        headStyles: {
+          fillColor: false,
+          textColor: [148, 163, 184],
+          fontSize: 7.5,
+          fontStyle: 'bold',
+          halign: 'left',
+          lineWidth: { bottom: 0.5 },
+          lineColor: [203, 213, 225]
+        },
+        columnStyles: {
+          0: { cellWidth: 'auto', halign: 'left' },
+          1: { cellWidth: 20, halign: 'center' },
+          2: { cellWidth: 30, halign: 'right' },
+          3: { cellWidth: 35, halign: 'right' }
+        },
+        styles: {
+          font: 'helvetica',
+          fontSize: 8.5,
+          textColor: [51, 65, 85],
+          cellPadding: 3
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252]
+        }
+      });
+
+      let finalY = doc.lastAutoTable.finalY + 8;
+
+      // 6. Totals & Notes
+      const taxRate = parseFloat(val('taxRate')) || 0;
+      const discount = parseFloat(val('discountAmount')) || 0;
+      let subtotal = 0;
+      items.forEach(i => subtotal += ((i.qty || 0) * (i.rate || 0)));
+      const taxAmt = (subtotal * taxRate) / 100;
+      const total = Math.max(0, subtotal + taxAmt - discount);
+
+      // Notes
+      if (val('invNotes')) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7.5);
+        doc.setTextColor(148, 163, 184);
+        doc.text("PAYMENT TERMS / NOTES", 15, finalY);
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(100, 116, 139);
+        const noteLines = doc.splitTextToSize(val('invNotes'), 90);
+        doc.text(noteLines, 15, finalY + 4.5);
+      }
+
+      // Totals Box
+      doc.setFontSize(8.5);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100, 116, 139);
+
+      doc.text("Subtotal:", 145, finalY);
+      doc.text(`${cur}${subtotal.toFixed(2)}`, 195, finalY, { align: "right" });
+      finalY += 4.5;
+
+      if (taxRate > 0) {
+        doc.text(`Tax (${taxRate}%):`, 145, finalY);
+        doc.text(`${cur}${taxAmt.toFixed(2)}`, 195, finalY, { align: "right" });
+        finalY += 4.5;
+      }
+
+      if (discount > 0) {
+        doc.text("Discount:", 145, finalY);
+        doc.text(`-${cur}${discount.toFixed(2)}`, 195, finalY, { align: "right" });
+        finalY += 4.5;
+      }
+
+      doc.setDrawColor(203, 213, 225);
+      doc.line(140, finalY, 195, finalY);
+      finalY += 5;
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      doc.text("Total Due:", 145, finalY);
+      doc.text(`${cur}${total.toFixed(2)}`, 195, finalY, { align: "right" });
+
+      // Footer
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.setTextColor(148, 163, 184);
+      doc.text("Generated via iWillFix — Free Tools for Professionals", 105, 285, { align: "center" });
+
+      // Download
+      const invFileName = (val('invNumber') || 'invoice').replace(/[^\w\-]+/g, '_');
+      doc.save(`${invFileName}.pdf`);
+    }
+
+    function resetForm() {
+      if (confirm("Reset invoice details?")) {
+        items = [{ description: "", qty: 1, rate: 0 }];
+        ['invNumber', 'invPoNumber', 'invNotes', 'senderName', 'senderEmail', 'senderTaxId',
+         'senderAddress', 'clientName', 'clientEmail', 'clientTaxId', 'clientAddress']
+          .forEach(id => document.getElementById(id).value = "");
+        document.getElementById('taxRate').value = 0;
+        document.getElementById('discountAmount').value = 0;
+        document.getElementById('preview-logo-container').classList.add('hidden');
+        document.getElementById('invLogo').value = "";
+        setDefaultDates();
+        renderItemInputs();
+        updateInvoice();
+      }
+    }
+  </script>
+</body>
+</html>
